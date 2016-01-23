@@ -446,7 +446,11 @@ func (g *Grep) Reader(r io.Reader, name string) {
 			case g.C:
 				count++
 			case g.N:
-				fmt.Fprintf(g.Stdout, "%s%d:%s", prefix, lineno, line)
+				if len(line) > 200 {
+					fmt.Fprintf(g.Stdout, "%s%d:%s\n", prefix, lineno, line[:200])
+				} else {
+					fmt.Fprintf(g.Stdout, "%s%d:%s", prefix, lineno, line)
+				}
 			default:
 				fmt.Fprintf(g.Stdout, "%s%s", prefix, line)
 			}
