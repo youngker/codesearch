@@ -118,12 +118,12 @@ func (ix *IndexWriter) AddFile(name string) {
 func (ix *IndexWriter) Add(name string, f io.Reader) {
 	ix.trigram.Reset()
 	var (
-		c       = byte(0)
-		i       = 0
-		buf     = ix.inbuf[:0]
-		tv      = uint32(0)
-		n       = int64(0)
-		linelen = 0
+		c   = byte(0)
+		i   = 0
+		buf = ix.inbuf[:0]
+		tv  = uint32(0)
+		n   = int64(0)
+		ic  = int64(0)
 	)
 	for {
 		tv = (tv << 8) & (1<<24 - 1)
@@ -150,10 +150,12 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 			ix.trigram.Add(tv)
 		}
 		if !validUTF8((tv>>8)&0xFF, tv&0xFF) {
-			if ix.LogSkip {
-				log.Printf("%s: invalid UTF-8, ignoring\n", name)
+			if ic++; n > 100 {
+				if ix.LogSkip {
+					log.Printf("%s: invalid UTF-8, ignoring\n", name)
+				}
+				return
 			}
-			return
 		}
 		if n > maxFileLen {
 			if ix.LogSkip {
@@ -161,21 +163,6 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 			}
 			return
 		}
-		if linelen++; linelen > maxLineLen {
-			if ix.LogSkip {
-				log.Printf("%s: very long lines, ignoring\n", name)
-			}
-			return
-		}
-		if c == '\n' {
-			linelen = 0
-		}
-	}
-	if ix.trigram.Len() > maxTextTrigrams {
-		if ix.LogSkip {
-			log.Printf("%s: too many trigrams, probably not text, ignoring\n", name)
-		}
-		return
 	}
 	ix.totalBytes += n
 
