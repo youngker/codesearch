@@ -92,7 +92,7 @@ func makePostEntry(trigram, fileid uint32) postEntry {
 // or if it contains more than maxTextTrigrams distinct trigrams.
 const (
 	maxFileLen      = 1 << 30
-	maxLineLen      = 2000
+	maxLineLen      = 1 << 20
 	maxTextTrigrams = 20000
 )
 
@@ -118,12 +118,13 @@ func (ix *IndexWriter) AddFile(name string) {
 func (ix *IndexWriter) Add(name string, f io.Reader) {
 	ix.trigram.Reset()
 	var (
-		c   = byte(0)
-		i   = 0
-		buf = ix.inbuf[:0]
-		tv  = uint32(0)
-		n   = int64(0)
-		ic  = int64(0)
+		c       = byte(0)
+		i       = 0
+		buf     = ix.inbuf[:0]
+		tv      = uint32(0)
+		n       = int64(0)
+		ic      = int64(0)
+		linelen = 0
 	)
 	for {
 		tv = (tv << 8) & (1<<24 - 1)
@@ -162,6 +163,15 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 				log.Printf("%s: too long, ignoring\n", name)
 			}
 			return
+		}
+		if linelen++; linelen > maxLineLen {
+			if ix.LogSkip {
+				log.Printf("%s: very long lines, ignoring\n", name)
+			}
+			return
+		}
+		if c == '\n' {
+			linelen = 0
 		}
 	}
 	ix.totalBytes += n
