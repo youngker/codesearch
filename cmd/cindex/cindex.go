@@ -7,11 +7,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
 	"sort"
+	"strings"
 
 	"github.com/youngker/codesearch/index"
 )
@@ -41,7 +43,7 @@ itself is a useful command to run in a nightly cron job.
 
 The -list flag causes cindex to list the paths it has indexed and exit.
 
-By default cindex adds the named paths to the index but preserves 
+By default cindex adds the named paths to the index but preserves
 information about other paths that might already be indexed
 (the ones printed by cindex -list).  The -reset flag causes cindex to
 delete the existing index before indexing the new paths.
@@ -126,16 +128,30 @@ func main() {
 	ix.AddPaths(args)
 	for _, arg := range args {
 		log.Printf("index %s", arg)
+		var ignorefiles []string
+		data, err := ioutil.ReadFile(arg + "/.csearchignore")
+		if err == nil {
+			ignorefiles = append(ignorefiles, strings.Split(string(data), "\n")...)
+		}
 		filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 			if _, elem := filepath.Split(path); elem != "" {
-				// Skip various temporary or "hidden" files or directories.
-				if arg != path {
-					if elem[0] == '.' || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
+				if arg == path {
+					return nil
+				}
+				for _, ignorefile := range ignorefiles {
+					if m, _ := filepath.Match(ignorefile, elem); m {
 						if info.IsDir() {
 							return filepath.SkipDir
 						}
 						return nil
 					}
+				}
+				// Skip various temporary or "hidden" files or directories.
+				if elem[0] == '.' || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
+					if info.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
 				}
 			}
 			if err != nil {
